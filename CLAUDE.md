@@ -9,7 +9,7 @@ Single store (no multi-vendor marketplace). Persian, RTL UI.
 - Database: PostgreSQL 16 via the root `docker-compose.yml`. Flyway owns the schema; Hibernate `ddl-auto: validate`.
 - Frontend (later, in `frontend/`): Next.js / React, RTL, Vazirmatn font, Persian digits, Jalali dates.
 
-## Schema decisions (see backend/src/main/resources/db/migration)
+## Schema decisions (see backend/src/main/resources/db/migration and docs/database.md)
 - One Flyway migration per layer: V1 identity, V2 catalog, V3 cart, V4 orders/payments, V5 reviews.
   Demo data lives in `db/seed/R__demo_catalog.sql` (repeatable, idempotent, Persian content).
 - Money: whole Rials as BIGINT everywhere (Java `long`). UI shows Toman = Rial / 10.
@@ -35,9 +35,20 @@ Single store (no multi-vendor marketplace). Persian, RTL UI.
 - Never edit a migration that has run; add `V6__...` and onward.
 
 ## Next steps
-1. Verify the migrations run cleanly on PostgreSQL 16 (`docker compose up -d`, then `mvn spring-boot:run` in `backend/`).
-2. JPA entities per layer (owner still to decide: Lombok or plain Java).
+1. Verify the migrations run cleanly on PostgreSQL 16 (`docker compose up -d`, then `mvn spring-boot:run`
+   in `backend/`). The SQL was written without a live database and has never been executed.
+2. JPA entities per layer, matching the migrations exactly (`ddl-auto: validate` will catch drift).
 3. OTP auth + JWT, catalog read API, cart, checkout, Zarinpal/mock payment, reviews, admin endpoints.
+4. Frontend in `frontend/` (Next.js, RTL, Persian).
+
+## Open decisions (ask the owner before assuming)
+- Lombok or plain Java for entities and DTOs.
+- SMS provider for OTP (Kavenegar is the likely choice) and how codes are rate-limited.
+- JWT design: access token lifetime, and whether refresh tokens are stored in a new table.
+- Shipping fee rules (flat, free above a threshold, or per province).
+
+## Changing the schema
+- Any schema change is a new migration (`V6__...`), and `docs/database.md` is updated in the same commit.
 
 ## Git
 - Conventional Commits (`feat(db): ...`, `chore(backend): ...`), one logical change per commit.
