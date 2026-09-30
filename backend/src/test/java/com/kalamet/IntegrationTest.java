@@ -28,6 +28,8 @@ import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilde
 @SpringBootTest(properties = {
         "kalamet.jobs.enabled=false",
         "kalamet.otp.demo-mode=true",
+        // Every MockMvc request comes from 127.0.0.1; OtpIpLimiterTest covers the per-IP limit.
+        "kalamet.otp.max-per-ip=1000000",
         "kalamet.admin-mobiles=" + IntegrationTest.ADMIN_MOBILE})
 @AutoConfigureMockMvc
 @Import(TestcontainersConfiguration.class)

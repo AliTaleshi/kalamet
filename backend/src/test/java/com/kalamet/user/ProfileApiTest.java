@@ -58,6 +58,18 @@ class ProfileApiTest extends IntegrationTest {
     }
 
     @Test
+    void plaqueKeepsItsWordsAndGetsAsciiDigits() throws Exception {
+        Session session = signInCustomer();
+        postAs("/api/me/addresses", session, """
+                {"recipientName": "علی", "recipientMobile": "09121234567", "provinceId": 8, "city": "تهران",
+                 "addressLine": "خیابان آزادی", "plaque": "۱۲ الف", "unit": "طبقه ۳ - واحد ۷", "postalCode": "1234567890"}
+                """)
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.plaque").value("12 الف"))
+                .andExpect(jsonPath("$.unit").value("طبقه 3 - واحد 7"));
+    }
+
+    @Test
     void usersCannotSeeOthersAddresses() throws Exception {
         long address = createAddress(signInCustomer());
         deleteAs("/api/me/addresses/" + address, signInCustomer()).andExpect(status().isNotFound());

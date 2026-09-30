@@ -58,6 +58,9 @@ kalamet:
     resend-interval: 2m
     max-per-hour: 5
     max-attempts: 5
+    # Per client IP (many users can share one mobile-network IP, so keep this generous).
+    max-per-ip: 20
+    ip-window: 10m
     hash-secret: ${OTP_HASH_SECRET:dev-only-otp-secret-change-me}
     demo-mode: ${OTP_DEMO_MODE:false}
   sms:

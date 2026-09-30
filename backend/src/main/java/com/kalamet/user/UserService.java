@@ -53,7 +53,8 @@ public class UserService {
 
     @Transactional(readOnly = true)
     public PageResponse<AdminUserResponse> search(String query, Role role, Pageable pageable) {
-        String normalized = query == null || query.isBlank() ? null : PersianText.normalize(query);
+        String normalized = query == null || query.isBlank() ? null
+                : PersianText.digitsToAscii(PersianText.normalize(query));
         return PageResponse.of(users.search(normalized, role, pageable), AdminUserResponse::of);
     }
 

@@ -37,12 +37,15 @@ public record KalametProperties(
 
     /**
      * Login codes. {@code hashSecret} keys the HMAC stored in otp_codes, so a leaked table
-     * cannot be brute-forced offline. {@code demoMode} returns the code in the API response
-     * (for a public demo without SMS); never enable it with a real SMS provider.
+     * cannot be brute-forced offline. {@code maxPerIp} code requests are allowed per client IP
+     * per {@code ipWindow}, against SMS flooding across many numbers. {@code demoMode} returns
+     * the code in the API response (for a public demo without SMS); never enable it with a
+     * real SMS provider.
      */
     public record Otp(@Min(4) int length, @NotNull Duration ttl, @NotNull Duration resendInterval,
-                      @Min(1) int maxPerHour, @Min(1) int maxAttempts,
-                      @NotBlank @Size(min = 16) String hashSecret, boolean demoMode) {
+                      @Min(1) int maxPerHour, @Min(1) int maxAttempts, @Min(1) int maxPerIp,
+                      @NotNull Duration ipWindow, @NotBlank @Size(min = 16) String hashSecret,
+                      boolean demoMode) {
     }
 
     public record Sms(@NotNull SmsProvider provider, @Valid @NotNull Kavenegar kavenegar) {

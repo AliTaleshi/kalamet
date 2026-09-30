@@ -7,6 +7,7 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.HexFormat;
@@ -23,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class TokenService {
 
     private static final SecureRandom RANDOM = new SecureRandom();
+    static final Duration REUSE_GRACE = Duration.ofSeconds(30);
 
     private final JwtEncoder jwtEncoder;
     private final RefreshTokenRepository refreshTokens;
@@ -61,14 +63,20 @@ public class TokenService {
         return new Tokens(accessToken, settings.accessTokenTtl().toSeconds(), refreshToken);
     }
 
-    /** Swaps a valid refresh token for a new pair. Reusing an old token revokes every session of that user. */
+    /**
+     * Swaps a valid refresh token for a new pair. Reusing an old token revokes every session of
+     * that user, except within {@link #REUSE_GRACE} of its revocation: two tabs refreshing at the
+     * same moment is normal, and the second one simply gets 401 and picks up the new tokens.
+     */
     @Transactional(noRollbackFor = ApiException.class)
     public Tokens refresh(String refreshToken) {
         Instant now = clock.instant();
         RefreshToken stored = refreshTokens.findByTokenHash(sha256(refreshToken))
                 .orElseThrow(TokenService::invalidRefreshToken);
         if (stored.revoked()) {
-            refreshTokens.revokeAllForUser(stored.getUser().getId(), now);
+            if (stored.getRevokedAt().isBefore(now.minus(REUSE_GRACE))) {
+                refreshTokens.revokeAllForUser(stored.getUser().getId(), now);
+            }
             throw invalidRefreshToken();
         }
         if (stored.expired(now) || !stored.getUser().isActive()) {

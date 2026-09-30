@@ -104,8 +104,8 @@ public class AddressService {
                 .orElseThrow(() -> ApiException.badRequest("INVALID_PROVINCE", "استان انتخاب‌شده معتبر نیست.")));
         address.setCity(PersianText.normalize(request.city()));
         address.setAddressLine(PersianText.normalize(request.addressLine()));
-        address.setPlaque(PersianText.normalize(PersianText.asciiDigits(request.plaque())));
-        address.setUnit(PersianText.normalize(PersianText.asciiDigits(request.unit())));
+        address.setPlaque(PersianText.normalize(PersianText.digitsToAscii(request.plaque())));
+        address.setUnit(PersianText.normalize(PersianText.digitsToAscii(request.unit())));
         address.setPostalCode(postalCode);
     }
 

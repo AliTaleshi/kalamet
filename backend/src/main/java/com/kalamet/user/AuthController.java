@@ -11,6 +11,7 @@ import com.kalamet.user.UserDtos.RefreshRequest;
 import com.kalamet.user.UserDtos.VerifyRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -26,11 +27,13 @@ class AuthController {
     private final OtpService otpService;
     private final AuthService authService;
     private final TokenService tokenService;
+    private final OtpIpLimiter ipLimiter;
     private final boolean demoMode;
 
     AuthController(OtpService otpService, AuthService authService, TokenService tokenService,
-                   KalametProperties properties) {
+                   OtpIpLimiter ipLimiter, KalametProperties properties) {
         this.otpService = otpService;
+        this.ipLimiter = ipLimiter;
         this.authService = authService;
         this.tokenService = tokenService;
         this.demoMode = properties.otp().demoMode();
@@ -38,8 +41,9 @@ class AuthController {
 
     @Operation(summary = "Send a login code by SMS")
     @PostMapping("/otp")
-    OtpResponse requestCode(@Valid @RequestBody OtpRequest request) {
+    OtpResponse requestCode(@Valid @RequestBody OtpRequest request, HttpServletRequest http) {
         String mobile = MobileNumber.require(request.mobile());
+        ipLimiter.check(http.getRemoteAddr());
         OtpService.IssuedCode issued = otpService.issue(mobile);
         return new OtpResponse(mobile, issued.expiresInSeconds(), issued.resendInSeconds(),
                 demoMode ? issued.code() : null);

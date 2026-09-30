@@ -71,18 +71,51 @@ class AuthApiTest extends IntegrationTest {
     }
 
     @Test
-    void refreshTokensRotateAndReuseRevokesEverything() throws Exception {
+    void refreshTokensRotateAndLateReuseRevokesEverything() throws Exception {
         Session session = signInCustomer();
 
         String refreshed = body(refresh(session.refreshToken()).andExpect(status().isOk()));
         String newRefreshToken = JsonPath.read(refreshed, "$.refreshToken");
         assertThat(newRefreshToken).isNotEqualTo(session.refreshToken());
 
-        // The old token was rotated away; presenting it again looks like theft.
+        // The old token was rotated away a while ago; presenting it again looks like theft...
+        jdbc.sql("UPDATE refresh_tokens SET revoked_at = now() - interval '1 minute' WHERE revoked_at IS NOT NULL "
+                + "AND user_id = (SELECT id FROM users WHERE mobile = :m)").param("m", mobileOf(session)).update();
         refresh(session.refreshToken()).andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("INVALID_REFRESH_TOKEN"));
         // ...so the token issued in the meantime is revoked too.
         refresh(newRefreshToken).andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void twoTabsRefreshingAtOnceStaySignedIn() throws Exception {
+        Session session = signInCustomer();
+        String first = JsonPath.read(body(refresh(session.refreshToken()).andExpect(status().isOk())), "$.refreshToken");
+        // The second tab used the same token a moment later: refused, but nothing is revoked.
+        refresh(session.refreshToken()).andExpect(status().isUnauthorized());
+        refresh(first).andExpect(status().isOk());
+    }
+
+    @Test
+    void parallelCodeRequestsSendOneSms() throws Exception {
+        String mobile = newMobile();
+        java.util.List<java.util.concurrent.Callable<Integer>> calls = new java.util.ArrayList<>();
+        for (int i = 0; i < 5; i++) {
+            calls.add(() -> mvc.perform(post("/api/auth/otp").contentType(MediaType.APPLICATION_JSON)
+                    .content("{\"mobile\":\"%s\"}".formatted(mobile))).andReturn().getResponse().getStatus());
+        }
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(calls.size());
+        java.util.List<Integer> statuses = new java.util.ArrayList<>();
+        try {
+            for (var result : pool.invokeAll(calls)) {
+                statuses.add(result.get());
+            }
+        } finally {
+            pool.shutdown();
+        }
+        assertThat(statuses).containsOnlyOnce(200);
+        assertThat(jdbc.sql("SELECT count(*) FROM otp_codes WHERE mobile = :m").param("m", mobile)
+                .query(Long.class).single()).isEqualTo(1);
     }
 
     @Test
@@ -140,6 +173,10 @@ class AuthApiTest extends IntegrationTest {
     private org.springframework.test.web.servlet.ResultActions refresh(String token) throws Exception {
         return mvc.perform(post("/api/auth/refresh").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"refreshToken\":\"%s\"}".formatted(token)));
+    }
+
+    private String mobileOf(Session session) throws Exception {
+        return JsonPath.read(body(getAs("/api/me", session)), "$.mobile");
     }
 
     private static String toPersianDigits(String digits) {

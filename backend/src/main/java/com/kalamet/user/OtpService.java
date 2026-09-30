@@ -15,6 +15,7 @@ import java.time.Instant;
 import java.util.HexFormat;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
+import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,12 +29,15 @@ public class OtpService {
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final OtpCodeRepository otpCodes;
+    private final JdbcClient jdbc;
     private final SmsSender smsSender;
     private final KalametProperties.Otp settings;
     private final Clock clock;
 
-    OtpService(OtpCodeRepository otpCodes, SmsSender smsSender, KalametProperties properties, Clock clock) {
+    OtpService(OtpCodeRepository otpCodes, JdbcClient jdbc, SmsSender smsSender, KalametProperties properties,
+               Clock clock) {
         this.otpCodes = otpCodes;
+        this.jdbc = jdbc;
         this.smsSender = smsSender;
         this.settings = properties.otp();
         this.clock = clock;
@@ -44,6 +48,9 @@ public class OtpService {
 
     @Transactional
     public IssuedCode issue(String mobile) {
+        // Serialises requests for the same number, so parallel calls cannot both pass the limits.
+        jdbc.sql("SELECT 1 FROM pg_advisory_xact_lock(hashtext(:mobile))").param("mobile", mobile)
+                .query(Integer.class).single();
         Instant now = clock.instant();
         otpCodes.findFirstByMobileOrderByCreatedAtDesc(mobile).ifPresent(last -> {
             Instant resendAt = last.getCreatedAt().plus(settings.resendInterval());
