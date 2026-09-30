@@ -1,6 +1,6 @@
 # Database design
 
-Kalamet's schema has 17 tables in 5 layers. Each layer depends only on the ones above it, and
+Kalamet's schema has 16 tables in 5 layers. Each layer depends only on the ones above it, and
 each maps to one Flyway migration in `backend/src/main/resources/db/migration` and one Java
 package. The migrations are the source of truth; this document explains them.
 

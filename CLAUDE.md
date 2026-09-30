@@ -35,11 +35,13 @@ Single store (no multi-vendor marketplace). Persian, RTL UI.
 - Never edit a migration that has run; add `V6__...` and onward.
 
 ## Next steps
-1. Verify the migrations run cleanly on PostgreSQL 16 (`docker compose up -d`, then `mvn spring-boot:run`
-   in `backend/`). The SQL was written without a live database and has never been executed.
-2. JPA entities per layer, matching the migrations exactly (`ddl-auto: validate` will catch drift).
-3. OTP auth + JWT, catalog read API, cart, checkout, Zarinpal/mock payment, reviews, admin endpoints.
-4. Frontend in `frontend/` (Next.js, RTL, Persian).
+1. JPA entities per layer, matching the migrations exactly (`ddl-auto: validate` will catch drift).
+2. OTP auth + JWT, catalog read API, cart, checkout, Zarinpal/mock payment, reviews, admin endpoints.
+3. Frontend in `frontend/` (Next.js, RTL, Persian).
+
+Done: V1-V5 and the demo seed apply cleanly on PostgreSQL 16 with Flyway 11, the seed is safe to
+re-run, and the CHECK / UNIQUE / FK constraints reject bad rows as intended. The Spring Boot app
+itself has not been started yet (Maven was not available); do that before writing entities.
 
 ## Open decisions (ask the owner before assuming)
 - Lombok or plain Java for entities and DTOs.
