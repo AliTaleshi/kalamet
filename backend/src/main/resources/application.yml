@@ -16,8 +16,66 @@ spring:
       hibernate:
         jdbc:
           time_zone: UTC
+        default_batch_fetch_size: 50
 
   flyway:
     # db/seed holds demo catalog data. In production, set
     # SPRING_FLYWAY_LOCATIONS=classpath:db/migration to leave it out.
     locations: classpath:db/migration,classpath:db/seed
+
+server:
+  forward-headers-strategy: framework
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  default-produces-media-type: application/json
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+# Application settings (com.kalamet.config.KalametProperties).
+# The secrets below are for local development only; the prod profile requires real ones.
+kalamet:
+  frontend-url: ${FRONTEND_URL:http://localhost:3000}
+  cors-origins: ${CORS_ORIGINS:http://localhost:3000}
+  # Mobile numbers that become ADMIN on login, comma-separated.
+  admin-mobiles: ${ADMIN_MOBILES:09120000000}
+  jwt:
+    secret: ${JWT_SECRET:dev-only-jwt-secret-change-me-0123456789abcdef}
+    issuer: kalamet
+    access-token-ttl: 15m
+    refresh-token-ttl: 30d
+  otp:
+    length: 6
+    ttl: 2m
+    resend-interval: 2m
+    max-per-hour: 5
+    max-attempts: 5
+    hash-secret: ${OTP_HASH_SECRET:dev-only-otp-secret-change-me}
+    demo-mode: ${OTP_DEMO_MODE:false}
+  sms:
+    # LOG prints codes to the application log; KAVENEGAR sends real SMS.
+    provider: ${SMS_PROVIDER:LOG}
+    kavenegar:
+      api-key: ${KAVENEGAR_API_KEY:}
+      template: ${KAVENEGAR_TEMPLATE:kalamet-login}
+      base-url: https://api.kavenegar.com
+  shipping:
+    flat-fee: 600000          # 60,000 Toman
+    free-threshold: 10000000  # free shipping from 1,000,000 Toman
+  cart:
+    max-quantity-per-item: 10
+  order:
+    payment-timeout: 30m
+  payment:
+    mock-enabled: ${PAYMENT_MOCK_ENABLED:true}
+    # Where the gateway sends the customer back to. Empty: derived from the incoming request.
+    callback-url: ${PAYMENT_CALLBACK_URL:}
+    zarinpal:
+      merchant-id: ${ZARINPAL_MERCHANT_ID:}
+      # Sandbox by default; production is https://payment.zarinpal.com
+      base-url: ${ZARINPAL_BASE_URL:https://sandbox.zarinpal.com}

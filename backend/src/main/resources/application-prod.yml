@@ -1,0 +1,24 @@
+# Production: activate with SPRING_PROFILES_ACTIVE=prod. Secrets have no defaults here,
+# so the application refuses to start until they are provided.
+spring:
+  flyway:
+    locations: classpath:db/migration
+
+springdoc:
+  api-docs:
+    enabled: ${API_DOCS_ENABLED:false}
+
+kalamet:
+  admin-mobiles: ${ADMIN_MOBILES:}
+  jwt:
+    secret: ${JWT_SECRET}
+  otp:
+    hash-secret: ${OTP_HASH_SECRET}
+    demo-mode: false
+  sms:
+    provider: KAVENEGAR
+  payment:
+    mock-enabled: false
+    zarinpal:
+      merchant-id: ${ZARINPAL_MERCHANT_ID}
+      base-url: ${ZARINPAL_BASE_URL:https://payment.zarinpal.com}
