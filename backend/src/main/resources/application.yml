@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: kalamet-backend
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:kalamet}
+    username: ${DB_USER:kalamet}
+    password: ${DB_PASSWORD:kalamet}
+
+  jpa:
+    # Flyway owns the schema; Hibernate only checks that entities match it.
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+  flyway:
+    # db/seed holds demo catalog data. In production, set
+    # SPRING_FLYWAY_LOCATIONS=classpath:db/migration to leave it out.
+    locations: classpath:db/migration,classpath:db/seed
