@@ -1,12 +1,13 @@
 # Database design
 
-Kalamet's schema has 16 tables in 5 layers. Each layer depends only on the ones above it, and
-each maps to one Flyway migration in `backend/src/main/resources/db/migration` and one Java
-package. The migrations are the source of truth; this document explains them.
+Kalamet's schema has 17 tables in 5 layers. Each layer depends only on the ones above it, and
+each maps to one Flyway migration in `backend/src/main/resources/db/migration` (plus later
+additions such as V6) and one Java package. The migrations are the source of truth; this
+document explains them.
 
 | Layer | Migration | Tables | Package |
 | --- | --- | --- | --- |
-| 1. Identity | `V1__identity.sql` | users, otp_codes, provinces, addresses | `user` |
+| 1. Identity | `V1__identity.sql`, `V6__refresh_tokens.sql` | users, otp_codes, provinces, addresses, refresh_tokens | `user` |
 | 2. Catalog | `V2__catalog.sql` | categories, brands, products, product_specs, product_variants, product_images | `catalog` |
 | 3. Shopping cart | `V3__cart.sql` | carts, cart_items | `cart` |
 | 4. Orders and payments | `V4__orders.sql` | orders, order_items, payments | `order` |
@@ -23,6 +24,7 @@ enums are `VARCHAR` with a `CHECK` constraint (`@Enumerated(EnumType.STRING)`); 
 erDiagram
   USERS ||--o{ ADDRESSES : has
   PROVINCES ||--o{ ADDRESSES : locates
+  USERS ||--o{ REFRESH_TOKENS : signs_in_with
   USERS ||--o| CARTS : owns
   USERS ||--o{ ORDERS : places
   USERS ||--o{ REVIEWS : writes
@@ -54,6 +56,7 @@ account yet. The user row is created on the first successful verification.
 erDiagram
   USERS ||--o{ ADDRESSES : has
   PROVINCES ||--o{ ADDRESSES : locates
+  USERS ||--o{ REFRESH_TOKENS : signs_in_with
   USERS {
     bigint id PK
     varchar mobile UK "09xxxxxxxxx"
@@ -66,7 +69,7 @@ erDiagram
   OTP_CODES {
     bigint id PK
     varchar mobile
-    varchar code_hash "SHA-256"
+    varchar code_hash "HMAC-SHA256"
     timestamptz expires_at
     int attempts
     timestamptz consumed_at
@@ -88,10 +91,21 @@ erDiagram
     varchar postal_code "10 digits"
     boolean is_default
   }
+  REFRESH_TOKENS {
+    bigint id PK
+    bigint user_id FK
+    varchar token_hash UK "SHA-256"
+    timestamptz expires_at
+    timestamptz revoked_at
+  }
 ```
 
-- Login is mobile number plus a one-time SMS code; there are no passwords. Only a hash of each
-  code is stored, with an expiry and an attempt counter to stop brute-forcing.
+- Login is mobile number plus a one-time SMS code; there are no passwords. Only an HMAC of each
+  code is stored (keyed with a server secret, because a six-digit code is trivial to recover from
+  a plain hash), with an expiry and an attempt counter to stop brute-forcing.
+- Access tokens are 15-minute JWTs and are not stored. Refresh tokens (30 days) are random strings
+  stored as SHA-256 hashes. Every refresh revokes the used token and issues a new one; presenting
+  a revoked token again revokes all of that user's tokens (V6).
 - A partial unique index allows at most one default address per user.
 - Orders copy the address as text at checkout, so addresses can be edited or deleted freely.
 
@@ -295,7 +309,7 @@ erDiagram
 
 | Parent → child | On parent delete |
 | --- | --- |
-| users → addresses, carts, reviews | Cascade |
+| users → addresses, carts, reviews, refresh_tokens | Cascade |
 | users → orders | Restrict |
 | provinces → addresses | Restrict |
 | categories → categories, products | Restrict |
@@ -309,5 +323,4 @@ erDiagram
 
 ## Planned extensions
 
-Product Q&A, wishlists, coupons, Persian full-text search (e.g. `pg_trgm`), and refresh-token
-storage for JWT auth.
+Product Q&A, wishlists, coupons, and Persian full-text search (e.g. `pg_trgm`).
