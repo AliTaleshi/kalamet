@@ -26,6 +26,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class CartService {
 
+    /** Distinct variants per cart. */
+    static final int MAX_LINES = 50;
+
     private final CartRepository carts;
     private final ProductVariantRepository variants;
     private final ProductImageRepository images;
@@ -85,6 +88,9 @@ public class CartService {
      * rejected. A variant already in the cart keeps the larger quantity, so merging twice is harmless.
      */
     public CartView merge(Long userId, List<AddItemRequest> items) {
+        if (items.isEmpty()) {
+            return view(userId);
+        }
         Cart cart = cartOf(userId);
         Map<Long, ProductVariant> found = variants.findWithProductByIdIn(
                         items.stream().map(AddItemRequest::variantId).toList()).stream()
@@ -175,10 +181,20 @@ public class CartService {
         }
         Instant now = clock.instant();
         int finalQuantity = quantity;
-        cart.item(variant.getId()).ifPresentOrElse(item -> {
-            item.setQuantity(finalQuantity);
+        CartItem existing = cart.item(variant.getId()).orElse(null);
+        if (existing != null) {
+            existing.setQuantity(finalQuantity);
             cart.touch(now);
-        }, () -> cart.add(variant, finalQuantity, now));
+            return;
+        }
+        if (cart.getItems().size() >= MAX_LINES) {
+            if (!strict) {
+                return;
+            }
+            throw ApiException.conflict("CART_FULL",
+                    "سبد خرید حداکثر " + PersianText.digits(MAX_LINES) + " کالای مختلف می‌پذیرد.");
+        }
+        cart.add(variant, finalQuantity, now);
     }
 
     private ProductVariant sellableVariant(Long variantId) {

@@ -2,6 +2,7 @@ package com.kalamet.order;
 
 import com.kalamet.cart.Cart;
 import com.kalamet.cart.CartItem;
+import com.kalamet.cart.CartDtos.CartView;
 import com.kalamet.cart.CartService;
 import com.kalamet.cart.ShippingPolicy;
 import com.kalamet.catalog.PriceQuote;
@@ -9,7 +10,9 @@ import com.kalamet.catalog.ProductImage;
 import com.kalamet.catalog.ProductImageRepository;
 import com.kalamet.catalog.ProductVariant;
 import com.kalamet.common.ApiException;
+import com.kalamet.common.MobileNumber;
 import com.kalamet.common.PageResponse;
+import com.kalamet.common.PersianText;
 import com.kalamet.config.KalametProperties;
 import com.kalamet.order.OrderDtos.CustomerResponse;
 import com.kalamet.order.OrderDtos.OrderLine;
@@ -25,6 +28,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
@@ -63,12 +67,17 @@ public class OrderService {
      * Turns the cart into an order at current prices and reserves the stock. The variant
      * version check stops two customers from buying the same last unit; the loser gets 409.
      */
-    public OrderResponse checkout(Long userId, Long addressId) {
+    public OrderResponse checkout(Long userId, Long addressId, Long expectedPayable) {
         Instant now = clock.instant();
         Cart cart = cartService.lockedCart(userId);
-        if (cartService.view(cart).hasIssues()) {
+        CartView current = cartService.view(cart);
+        if (current.hasIssues()) {
             throw ApiException.conflict("CART_HAS_ISSUES",
                     "موجودی یا وضعیت برخی کالاهای سبد تغییر کرده است. لطفاً سبد خرید را بررسی کنید.");
+        }
+        if (expectedPayable != null && expectedPayable != current.payable()) {
+            throw ApiException.conflict("PRICES_CHANGED",
+                    "قیمت برخی کالاهای سبد تغییر کرده است. لطفاً مبلغ جدید را بررسی کنید.");
         }
         Address address = addressService.require(userId, addressId);
 
@@ -79,6 +88,10 @@ public class OrderService {
             order.addItem(new OrderItem(order, variant, PriceQuote.of(variant, now), item.getQuantity()));
         }
         order.setShippingFee(shipping.fee(order.getItemsTotal()));
+        if (order.getTotal() == 0) {
+            // Nothing to pay (free items, free shipping): gateways and the payments table need an amount.
+            order.moveTo(OrderStatus.PAID, now);
+        }
         orders.saveAndFlush(order);
         cart.clear(now);
         log.info("Order {} created for user {} ({} Rial)", order.getOrderNumber(), userId, order.getTotal());
@@ -110,7 +123,12 @@ public class OrderService {
 
     @Transactional(readOnly = true)
     public PageResponse<OrderSummary> adminSearch(OrderStatus status, String query, Pageable pageable) {
-        String normalized = query == null || query.isBlank() ? null : query.strip();
+        String normalized = null;
+        if (query != null && !query.isBlank()) {
+            // A mobile in any format (Persian digits, +98...) or an order number.
+            String mobile = MobileNumber.normalize(query);
+            normalized = mobile != null ? mobile : PersianText.digitsToAscii(query.strip()).toUpperCase(Locale.ROOT);
+        }
         return summaries(orders.adminSearch(status, normalized, pageable), true);
     }
 

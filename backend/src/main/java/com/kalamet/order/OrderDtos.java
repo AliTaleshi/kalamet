@@ -11,7 +11,13 @@ public final class OrderDtos {
     private OrderDtos() {
     }
 
-    public record CheckoutRequest(@NotNull(message = "نشانی تحویل را انتخاب کنید.") Long addressId) {
+    /**
+     * {@code expectedPayable}: the payable amount the customer saw in the cart (Rial). If prices
+     * changed since (an offer ended, an admin edited a price), checkout is refused with
+     * PRICES_CHANGED instead of charging a different amount. Optional but recommended.
+     */
+    public record CheckoutRequest(@NotNull(message = "نشانی تحویل را انتخاب کنید.") Long addressId,
+                                  Long expectedPayable) {
     }
 
     /** {@code gateway} is optional: Zarinpal when configured, otherwise the mock gateway. */

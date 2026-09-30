@@ -39,7 +39,7 @@ class OrderController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     OrderResponse checkout(@CurrentUserId Long userId, @Valid @RequestBody CheckoutRequest request) {
-        return orderService.checkout(userId, request.addressId());
+        return orderService.checkout(userId, request.addressId(), request.expectedPayable());
     }
 
     @GetMapping

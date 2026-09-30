@@ -106,6 +106,60 @@ class CheckoutFlowTest extends IntegrationTest {
     }
 
     @Test
+    void checkoutRefusesWhenThePriceChangedSinceTheCart() throws Exception {
+        Session customer = signInCustomer();
+        long addressId = createAddress(customer);
+        postAs("/api/cart/items", customer, "{\"variantId\": %d, \"quantity\": 1}".formatted(variantId("VLT-65W")))
+                .andExpect(jsonPath("$.payable").value(18_500_000));
+
+        postAs("/api/orders", customer, "{\"addressId\": %d, \"expectedPayable\": 17000000}".formatted(addressId))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("PRICES_CHANGED"));
+        getAs("/api/cart", customer).andExpect(jsonPath("$.lines.length()").value(1));   // nothing was ordered
+
+        postAs("/api/orders", customer, "{\"addressId\": %d, \"expectedPayable\": 18500000}".formatted(addressId))
+                .andExpect(status().isCreated());
+    }
+
+    @Test
+    void freeOrdersAreMarkedPaidAtCheckout() throws Exception {
+        Session admin = signInAdmin();
+        long categoryId = jdbc.sql("SELECT id FROM categories WHERE slug = 'mugs'").query(Long.class).single();
+        postAs("/api/admin/products", admin, """
+                {"product": {"categoryId": %d, "name": "ماگ هدیه", "slug": "gift-mug"},
+                 "variants": [{"sku": "GIFT-MUG", "price": 0, "stock": 5}]}
+                """.formatted(categoryId)).andExpect(status().isCreated());
+
+        Session customer = signInCustomer();
+        long addressId = createAddress(customer);
+        postAs("/api/cart/items", customer, "{\"variantId\": %d, \"quantity\": 1}".formatted(variantId("GIFT-MUG")))
+                .andExpect(jsonPath("$.payable").value(0));
+        String orderNumber = JsonPath.read(body(postAs("/api/orders", customer, "{\"addressId\": %d}".formatted(addressId))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.status").value("PAID"))
+                .andExpect(jsonPath("$.total").value(0))), "$.orderNumber");
+        postAs("/api/orders/" + orderNumber + "/pay", customer, "{}").andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("ORDER_NOT_PAYABLE"));
+    }
+
+    @Test
+    void adminFindsOrdersByMobileInAnyFormat() throws Exception {
+        String mobile = newMobile();
+        Session customer = signIn(mobile);
+        long addressId = createAddress(customer);
+        postAs("/api/cart/items", customer, "{\"variantId\": %d, \"quantity\": 1}".formatted(variantId("KZG-MUG-GRY")));
+        String orderNumber = JsonPath.read(body(postAs("/api/orders", customer,
+                "{\"addressId\": %d}".formatted(addressId))), "$.orderNumber");
+
+        StringBuilder persian = new StringBuilder("+۹۸");
+        mobile.substring(1).chars().forEach(c -> persian.append((char) ('۰' + (c - '0'))));
+        getAs("/api/admin/orders?q=" + persian, signInAdmin())
+                .andExpect(jsonPath("$.items[0].orderNumber").value(orderNumber));
+        getAs("/api/admin/orders?q=" + orderNumber.toLowerCase(), signInAdmin())
+                .andExpect(jsonPath("$.totalItems").value(1));
+    }
+
+    @Test
     void smallOrdersPayShipping() throws Exception {
         Session customer = signInCustomer();
         postAs("/api/cart/items", customer, "{\"variantId\": %d, \"quantity\": 1}".formatted(variantId("VLT-65W")))
@@ -257,6 +311,44 @@ class CheckoutFlowTest extends IntegrationTest {
         assertThat(statuses).containsOnlyOnce(201);
         assertThat(statuses).filteredOn(s -> s != 201).allMatch(s -> s == 409);
         assertThat(stock("LAST-UNIT")).isZero();
+    }
+
+    @Test
+    void crossingCheckoutsNeverDeadlock() throws Exception {
+        Session admin = signInAdmin();
+        long categoryId = jdbc.sql("SELECT id FROM categories WHERE slug = 'mugs'").query(Long.class).single();
+        postAs("/api/admin/products", admin, """
+                {"product": {"categoryId": %d, "name": "ماگ دوقلو", "slug": "twin-mug"},
+                 "variants": [{"sku": "TWIN-A", "attributes": {"color": "سبز"}, "price": 1000000, "stock": 1000},
+                              {"sku": "TWIN-B", "attributes": {"color": "زرد"}, "price": 1000000, "stock": 1000}]}
+                """.formatted(categoryId)).andExpect(status().isCreated());
+        long a = variantId("TWIN-A");
+        long b = variantId("TWIN-B");
+
+        List<Integer> statuses = new ArrayList<>();
+        for (int round = 0; round < 5; round++) {
+            List<Callable<Integer>> checkouts = new ArrayList<>();
+            for (long[] order : new long[][] {{a, b}, {b, a}, {a, b}, {b, a}}) {
+                Session customer = signInCustomer();
+                long addressId = createAddress(customer);
+                for (long variant : order) {
+                    postAs("/api/cart/items", customer, "{\"variantId\": %d, \"quantity\": 1}".formatted(variant));
+                }
+                checkouts.add(() -> postAs("/api/orders", customer, "{\"addressId\": %d}".formatted(addressId))
+                        .andReturn().getResponse().getStatus());
+            }
+            ExecutorService pool = Executors.newFixedThreadPool(checkouts.size());
+            try {
+                for (Future<Integer> result : pool.invokeAll(checkouts)) {
+                    statuses.add(result.get());
+                }
+            } finally {
+                pool.shutdown();
+            }
+        }
+        // Losing a race must be a 409 the customer can retry, never a 500. (Deadlocks are prevented by
+        // hibernate.order_updates and mapped to 409 if they happen; this test cannot force one.)
+        assertThat(statuses).allMatch(s -> s == 201 || s == 409).contains(201);
     }
 
     private String startMockPayment(Session customer, String orderNumber) throws Exception {
