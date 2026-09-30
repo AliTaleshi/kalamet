@@ -1,0 +1,7 @@
+# Normalise line endings so commits stay clean across Windows, macOS and Linux
+* text=auto eol=lf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.png binary
+*.jpg binary
+*.jar binary
