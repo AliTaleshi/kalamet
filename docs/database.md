@@ -179,8 +179,12 @@ erDiagram
   options has one variant with `attributes = {}`. Attribute keys are English, values Persian.
 - The database rejects a `compare_at_price` that is not higher than `price`, and a
   `discount_ends_at` without a `compare_at_price`.
-- `version` makes concurrent stock updates safe: one checkout gets an optimistic-lock error and
-  retries instead of overselling.
+- Pricing rule: while `discount_ends_at` is in the future (or null), the customer pays `price` and
+  sees `compare_at_price` crossed out. Once `discount_ends_at` has passed, the offer is over and the
+  customer pays `compare_at_price`, the regular price. `PriceQuote` implements this in Java and
+  `ProductSearch` repeats it in SQL.
+- `version` makes concurrent stock updates safe: when two checkouts race for the last unit, one
+  gets an optimistic-lock conflict (HTTP 409) instead of overselling.
 - Products and variants are never hard-deleted once sold (order items reference variants); set
   `active = false` instead.
 
@@ -262,14 +266,16 @@ Order status lifecycle:
 
 ```mermaid
 stateDiagram-v2
-  [*] --> PENDING_PAYMENT : checkout
+  [*] --> PENDING_PAYMENT : checkout (stock reserved)
   PENDING_PAYMENT --> PAID : payment verified
-  PENDING_PAYMENT --> CANCELLED : payment failed or abandoned
+  PENDING_PAYMENT --> CANCELLED : customer, admin, or 30 min without payment
   PAID --> SHIPPED : admin ships
-  PAID --> CANCELLED : cancelled before shipping
-  SHIPPED --> DELIVERED : delivery confirmed
-  CANCELLED --> REFUNDED : money returned
+  SHIPPED --> DELIVERED : admin confirms delivery
+  PAID --> REFUNDED : admin records a refund
+  SHIPPED --> REFUNDED : admin records a refund
+  DELIVERED --> REFUNDED : admin records a refund
   DELIVERED --> [*]
+  CANCELLED --> [*]
   REFUNDED --> [*]
 ```
 
@@ -279,8 +285,13 @@ stateDiagram-v2
 - Payments keep one row per attempt, following Zarinpal's flow: request an `authority`, redirect
   the customer, verify, store `ref_id`. Unique `authority` and `ref_id` make callback handling
   idempotent.
-- Checkout runs in one transaction: check stock, decrement it, create the order and items,
-  empty the cart. Cancelling restores stock.
+- Checkout runs in one transaction: check stock, decrement it (reserving it), create the order
+  and items, empty the cart. Stock goes back when an order that has not shipped is cancelled or
+  refunded. Unpaid orders are cancelled after the payment timeout (30 minutes), unless a payment
+  attempt started in the last 15 minutes is still open.
+- Every status change locks the order row first (`SELECT ... FOR UPDATE`), so the payment
+  callback, the expiry job and admin actions never interleave. The callback verifies with the
+  gateway while holding that lock, so a payment is never verified twice.
 
 ## Layer 5: Engagement
 
@@ -323,4 +334,5 @@ erDiagram
 
 ## Planned extensions
 
-Product Q&A, wishlists, coupons, and Persian full-text search (e.g. `pg_trgm`).
+Product Q&A, wishlists, coupons, and Persian full-text search (e.g. `pg_trgm` indexes; today's
+search is `ILIKE` per word, which is fine for a small catalog).
