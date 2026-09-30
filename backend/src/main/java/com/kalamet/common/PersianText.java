@@ -33,8 +33,8 @@ public final class PersianText {
         return out.toString();
     }
 
-    /** Converts ۰-۹ and ٠-٩ to 0-9 and strips spaces and dashes. */
-    public static String asciiDigits(String text) {
+    /** Converts ۰-۹ and ٠-٩ to 0-9 and leaves everything else as it is (for plaques, search words). */
+    public static String digitsToAscii(String text) {
         if (text == null) {
             return null;
         }
@@ -44,7 +44,22 @@ public final class PersianText {
                 out.append((char) ('0' + (c - '\u06F0')));
             } else if (c >= '\u0660' && c <= '\u0669') {
                 out.append((char) ('0' + (c - '\u0660')));
-            } else if (c != ' ' && c != '-' && c != '\u200C') {
+            } else {
+                out.append(c);
+            }
+        }
+        return out.toString();
+    }
+
+    /** Converts ۰-۹ and ٠-٩ to 0-9 and strips spaces and dashes (for numbers such as mobiles and postal codes). */
+    public static String asciiDigits(String text) {
+        if (text == null) {
+            return null;
+        }
+        String digits = digitsToAscii(text);
+        StringBuilder out = new StringBuilder(digits.length());
+        for (char c : digits.toCharArray()) {
+            if (c != ' ' && c != '-' && c != '\u200C') {
                 out.append(c);
             }
         }

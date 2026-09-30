@@ -4,7 +4,9 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import lombok.extern.slf4j.Slf4j;
 import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.beans.TypeMismatchException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.HttpStatusCode;
@@ -17,6 +19,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 /**
@@ -26,9 +29,15 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
 @RestControllerAdvice
 public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
+    private static final String RETRY_MESSAGE = "اطلاعات هم‌زمان تغییر کرد. لطفاً دوباره تلاش کنید.";
+
     /** Database constraints that users can trip, mapped to messages they can understand. */
     private static final Map<String, String> CONSTRAINT_MESSAGES = Map.ofEntries(
             Map.entry("uk_users_email", "این ایمیل قبلاً ثبت شده است."),
+            // Two requests of the same user at once (double click, two tabs): a retry succeeds.
+            Map.entry("uk_carts_user", RETRY_MESSAGE),
+            Map.entry("uk_cart_items_cart_variant", RETRY_MESSAGE),
+            Map.entry("uk_addresses_one_default", RETRY_MESSAGE),
             Map.entry("uk_categories_slug", "دسته‌بندی دیگری با این نامک وجود دارد."),
             Map.entry("uk_brands_slug", "برند دیگری با این نامک وجود دارد."),
             Map.entry("uk_products_slug", "کالای دیگری با این نامک وجود دارد."),
@@ -50,11 +59,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         return response.body(body);
     }
 
-    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
-    ResponseEntity<ProblemDetail> handleOptimisticLock(ObjectOptimisticLockingFailureException ex) {
-        log.info("Optimistic lock conflict: {}", ex.getMessage());
-        return of(HttpStatus.CONFLICT, "CONCURRENT_UPDATE",
-                "اطلاعات هم‌زمان تغییر کرد. لطفاً دوباره تلاش کنید.");
+    /** Optimistic version conflicts, and lock timeouts or deadlocks reported by PostgreSQL. */
+    @ExceptionHandler({ObjectOptimisticLockingFailureException.class, PessimisticLockingFailureException.class})
+    ResponseEntity<ProblemDetail> handleConcurrentUpdate(RuntimeException ex) {
+        log.info("Concurrent update conflict: {}", ex.getMessage());
+        return of(HttpStatus.CONFLICT, "CONCURRENT_UPDATE", RETRY_MESSAGE);
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
@@ -65,7 +74,8 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             log.warn("Unmapped data integrity violation (constraint {})", constraint, ex);
             message = "داده‌های ارسال‌شده با قوانین فروشگاه سازگار نیست.";
         }
-        return of(HttpStatus.CONFLICT, "CONSTRAINT_VIOLATION", message);
+        return of(HttpStatus.CONFLICT, RETRY_MESSAGE.equals(message) ? "CONCURRENT_UPDATE" : "CONSTRAINT_VIOLATION",
+                message);
     }
 
     @ExceptionHandler(AccessDeniedException.class)
@@ -99,13 +109,33 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 "بدنه درخواست قابل خواندن نیست؛ قالب JSON و نوع فیلدها را بررسی کنید."));
     }
 
-    /** Framework errors (bad JSON, wrong method, missing parameter...) keep their status but get a code. */
+    @Override
+    protected ResponseEntity<Object> handleTypeMismatch(
+            TypeMismatchException ex, HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+        String name = ex instanceof MethodArgumentTypeMismatchException mismatch ? mismatch.getName() : ex.getPropertyName();
+        return ResponseEntity.badRequest().body(problem(HttpStatus.BAD_REQUEST, "INVALID_PARAMETER",
+                "مقدار پارامتر «" + name + "» معتبر نیست."));
+    }
+
+    /**
+     * Other framework errors (unknown path, wrong method, missing parameter...) keep their status
+     * but get a code and a Persian message, like every other error.
+     */
     @Override
     protected ResponseEntity<Object> handleExceptionInternal(
             Exception ex, Object body, HttpHeaders headers, HttpStatusCode statusCode, WebRequest request) {
         ResponseEntity<Object> response = super.handleExceptionInternal(ex, body, headers, statusCode, request);
         if (response != null && response.getBody() instanceof ProblemDetail detail && detail.getProperties() == null) {
             detail.setProperty("code", "REQUEST_REJECTED");
+            detail.setDetail(switch (statusCode.value()) {
+                case 404 -> "آدرس درخواست‌شده وجود ندارد.";
+                case 405 -> "این روش درخواست برای این آدرس پشتیبانی نمی‌شود.";
+                case 406, 415 -> "قالب درخواست یا پاسخ پشتیبانی نمی‌شود؛ از JSON استفاده کنید.";
+                case 413 -> "حجم درخواست بیش از حد مجاز است.";
+                default -> statusCode.is5xxServerError()
+                        ? "خطای غیرمنتظره‌ای رخ داد. لطفاً بعداً تلاش کنید."
+                        : "درخواست نامعتبر است.";
+            });
         }
         return response;
     }
