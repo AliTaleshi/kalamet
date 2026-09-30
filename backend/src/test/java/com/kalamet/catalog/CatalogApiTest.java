@@ -36,6 +36,35 @@ class CatalogApiTest extends IntegrationTest {
     }
 
     @Test
+    void searchIgnoresTheDigitScript() throws Exception {
+        // The charger is named "... ۶۵ وات" with Persian digits.
+        for (String query : new String[] {"65 وات", "۶۵ وات", "٦٥"}) {
+            getAs("/api/products?q=" + query, null)
+                    .andExpect(jsonPath("$.items[*].slug", hasItem("voltra-usb-c-charger-65w")));
+        }
+    }
+
+    @Test
+    void blankFiltersAreIgnoredAndOversizedQueriesRejected() throws Exception {
+        getAs("/api/products?brand=&category=fashion", null)
+                .andExpect(jsonPath("$.items[*].slug", hasItem("arian-essential-cotton-tee")));
+        getAs("/api/products?q=" + "a".repeat(201), null)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value("درخواست نامعتبر است."));
+    }
+
+    @Test
+    void frameworkErrorsArePersianToo() throws Exception {
+        getAs("/api/admin/orders?status=LOST", signInAdmin())
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_PARAMETER"))
+                .andExpect(jsonPath("$.detail").value("مقدار پارامتر «status» معتبر نیست."));
+        getAs("/api/no-such-endpoint", signInAdmin())
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.detail").value("آدرس درخواست‌شده وجود ندارد."));
+    }
+
+    @Test
     void categoryFilterIncludesSubcategories() throws Exception {
         getAs("/api/products?category=fashion", null)
                 .andExpect(jsonPath("$.items[*].slug", hasItem("arian-essential-cotton-tee")))

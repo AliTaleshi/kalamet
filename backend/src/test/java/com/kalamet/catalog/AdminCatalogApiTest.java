@@ -69,6 +69,32 @@ class AdminCatalogApiTest extends IntegrationTest {
     }
 
     @Test
+    void staleVariantEditsAreRejected() throws Exception {
+        Session admin = signInAdmin();
+        long categoryId = jdbc.sql("SELECT id FROM categories WHERE slug = 'mugs'").query(Long.class).single();
+        String created = body(postAs("/api/admin/products", admin, """
+                {"product": {"categoryId": %d, "name": "ماگ نسخه‌دار", "slug": "versioned-mug"},
+                 "variants": [{"sku": "VER-MUG", "price": 1000000, "stock": 10}]}
+                """.formatted(categoryId)).andExpect(status().isCreated()));
+        long variantId = ((Number) JsonPath.read(created, "$.variants[0].id")).longValue();
+        long version = ((Number) JsonPath.read(created, "$.variants[0].version")).longValue();
+
+        // A sale happens after the admin opened the form.
+        jdbc.sql("UPDATE product_variants SET stock_quantity = 9, version = version + 1 WHERE id = :id")
+                .param("id", variantId).update();
+
+        String edit = """
+                {"sku": "VER-MUG", "price": 1000000, "stock": 15, "version": %d}
+                """;
+        putAs("/api/admin/variants/" + variantId, admin, edit.formatted(version))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("STALE_VARIANT"));
+        putAs("/api/admin/variants/" + variantId, admin, edit.formatted(version + 1))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.stock").value(15));
+    }
+
+    @Test
     void categoriesInUseCannotBeDeleted() throws Exception {
         Session admin = signInAdmin();
         long fashion = jdbc.sql("SELECT id FROM categories WHERE slug = 'fashion'").query(Long.class).single();

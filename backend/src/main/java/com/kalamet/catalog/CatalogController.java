@@ -10,7 +10,9 @@ import com.kalamet.common.Paging;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.constraints.Size;
 import java.util.List;
+import java.util.Objects;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -47,7 +49,8 @@ class CatalogController {
     @Operation(summary = "Search and filter products")
     @GetMapping("/api/products")
     PageResponse<ProductSummary> search(
-            @Parameter(description = "Words to find in the product or brand name") @RequestParam(required = false) String q,
+            @Parameter(description = "Words to find in the product or brand name")
+            @RequestParam(required = false) @Size(max = 200) String q,
             @Parameter(description = "Category slug; includes subcategories") @RequestParam(required = false) String category,
             @Parameter(description = "Brand slugs") @RequestParam(required = false) List<String> brand,
             @Parameter(description = "Rial") @RequestParam(required = false) Long minPrice,
@@ -58,7 +61,9 @@ class CatalogController {
             @RequestParam(required = false) String sort,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size) {
-        ProductSearch.Criteria criteria = new ProductSearch.Criteria(q, blankToNull(category), brand, minPrice,
+        List<String> brands = brand == null ? List.of()
+                : brand.stream().map(CatalogController::blankToNull).filter(Objects::nonNull).toList();
+        ProductSearch.Criteria criteria = new ProductSearch.Criteria(q, blankToNull(category), brands, minPrice,
                 maxPrice, inStock, offers, ProductSort.parse(sort));
         return catalogService.search(criteria, Paging.page(page), Paging.size(size));
     }

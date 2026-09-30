@@ -116,6 +116,11 @@ public final class CatalogDtos {
                                Long variantId, Integer sortOrder) {
     }
 
+    /**
+     * {@code stock} replaces the current stock. Send back the {@code version} you read (from the
+     * admin product detail) so that sales made meanwhile are not overwritten: a stale version is
+     * rejected with 409. Without it the update is applied unconditionally.
+     */
     public record VariantRequest(
             @NotBlank(message = "کد انبار (SKU) را وارد کنید.") @Size(max = 64) String sku,
             Map<String, String> attributes,
@@ -124,7 +129,8 @@ public final class CatalogDtos {
             Instant discountEndsAt,
             @NotNull(message = "موجودی را وارد کنید.")
             @Min(value = 0, message = "موجودی نمی‌تواند منفی باشد.") @Max(1_000_000) Integer stock,
-            Boolean active) {
+            Boolean active,
+            Long version) {
     }
 
     public record ProductRequest(

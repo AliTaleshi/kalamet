@@ -29,6 +29,8 @@ import org.springframework.stereotype.Repository;
 public class ProductSearch {
 
     private static final int MAX_QUERY_TOKENS = 5;
+    private static final String PERSIAN_DIGITS = "۰۱۲۳۴۵۶۷۸۹";
+    private static final String ARABIC_DIGITS = "٠١٢٣٤٥٦٧٨٩";
 
     /** Effective price of every active variant, then the one shown per product (in stock first, then cheapest). */
     private static final String CTES = """
@@ -99,13 +101,13 @@ public class ProductSearch {
         List<String> tokens = tokens(criteria.query());
         for (int i = 0; i < tokens.size(); i++) {
             String param = "q" + i;
-            // Zero-width non-joiners are ignored, so "تی‌شرت", "تیشرت" and "تی شرت" all match.
+            // Half-spaces and digit scripts are ignored: "تی شرت" finds "تی‌شرت", "65" finds "۶۵".
             from.append("""
-                    AND (replace(p.name, chr(8204), '') ILIKE :%1$s ESCAPE '\\'
+                    AND (%2$s ILIKE :%1$s ESCAPE '\\'
                          OR p.name_en ILIKE :%1$s ESCAPE '\\'
-                         OR replace(b.name, chr(8204), '') ILIKE :%1$s ESCAPE '\\'
+                         OR %3$s ILIKE :%1$s ESCAPE '\\'
                          OR b.name_en ILIKE :%1$s ESCAPE '\\')
-                    """.formatted(param));
+                    """.formatted(param, searchable("p.name"), searchable("b.name")));
             params.put(param, "%" + escapeLike(tokens.get(i)) + "%");
         }
         if (criteria.category() != null) {
@@ -226,8 +228,14 @@ public class ProductSearch {
                 rs.getBoolean("in_stock"), rs.getBigDecimal("rating"), rs.getLong("review_count"));
     }
 
+    /** The column without half-spaces and with ASCII digits, matching {@link #tokens}. */
+    private static String searchable(String column) {
+        return "translate(replace(" + column + ", chr(8204), ''), '" + PERSIAN_DIGITS + ARABIC_DIGITS
+                + "', '01234567890123456789')";
+    }
+
     private static List<String> tokens(String query) {
-        String normalized = PersianText.normalize(query);
+        String normalized = PersianText.digitsToAscii(PersianText.normalize(query));
         if (normalized == null) {
             return List.of();
         }

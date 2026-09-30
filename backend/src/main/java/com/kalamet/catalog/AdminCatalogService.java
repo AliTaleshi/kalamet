@@ -188,6 +188,10 @@ public class AdminCatalogService {
     public AdminVariantResponse updateVariant(Long variantId, VariantRequest request) {
         ProductVariant variant = variants.findById(variantId)
                 .orElseThrow(() -> ApiException.notFound("VARIANT_NOT_FOUND", "تنوع کالا پیدا نشد."));
+        if (request.version() != null && request.version() != variant.getVersion()) {
+            throw ApiException.conflict("STALE_VARIANT",
+                    "این تنوع پس از بارگذاری فرم تغییر کرده است (مثلاً فروش رفته). صفحه را تازه کنید و دوباره ذخیره کنید.");
+        }
         applyVariant(variant, request);
         return AdminVariantResponse.of(variants.saveAndFlush(variant));
     }
