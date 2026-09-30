@@ -46,6 +46,13 @@ Single store (no multi-vendor marketplace). Persian, RTL UI.
 - Checkout reserves stock (decrements it). Unpaid orders are cancelled after 30 minutes by
   `OrderExpiryJob` unless a payment attempt from the last 15 minutes is still open. Stock goes
   back when an unshipped order is cancelled or refunded.
+- Concurrency: `hibernate.order_updates` makes flushes lock rows in id order (no deadlocks between
+  checkouts); version conflicts, lock failures and "same user, two requests" unique violations
+  all become 409 `CONCURRENT_UPDATE`. OTP issuing takes a per-number advisory lock.
+- OTP abuse limits: per number (resend interval, hourly cap, attempts) and per client IP
+  (`OtpIpLimiter`, in memory, per instance). Behind a proxy the IP comes from `X-Forwarded-For`,
+  so the proxy must set it and clients must not reach the app directly.
+- Refresh-token reuse within 30 s of rotation is a benign race (401 only); later reuse revokes all.
 - Every order status change locks the order row first (`OrderRepository.lockById` /
   `lockByOrderNumber`), then touches payments. Keep that order to avoid deadlocks.
 - The payment callback never verifies twice and never verifies for an order that is no longer
@@ -72,8 +79,8 @@ Single store (no multi-vendor marketplace). Persian, RTL UI.
 
 ## Next steps
 1. Frontend in `frontend/` (Next.js, RTL, Persian) against `docs/api.md`.
-2. Optional backend extras: image upload (S3-compatible storage), per-IP rate limiting of
-   `/api/auth/otp`, a Dockerfile for deployment, pg_trgm search indexes.
+2. Optional backend extras: image upload (S3-compatible storage), a shared (Redis) OTP IP limit
+   for multiple instances, a Dockerfile for deployment, pg_trgm search indexes.
 
 ## Changing the schema
 - Any schema change is a new migration (`V7__...`), and `docs/database.md` is updated in the same commit.

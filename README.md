@@ -70,8 +70,9 @@ and refuses to start without the required secrets.
 | `FRONTEND_URL` | `http://localhost:3000` | Where customers land after paying (`/checkout/result`). |
 | `CORS_ORIGINS` | `http://localhost:3000` | Comma-separated origins allowed to call the API. |
 
-Shipping fee, free-shipping threshold, per-item limit and payment timeout are in
-`backend/src/main/resources/application.yml` under `kalamet.*`.
+Shipping fee, free-shipping threshold, per-item limit, payment timeout and the login-code limits
+(per number and per client IP) are in `backend/src/main/resources/application.yml` under
+`kalamet.*`. Behind a reverse proxy, make sure it sets `X-Forwarded-For`, which the per-IP limit uses.
 
 ## Database
 

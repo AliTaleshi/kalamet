@@ -45,10 +45,16 @@ sequenceDiagram
 
 | Method | Path | Auth | Purpose |
 | --- | --- | --- | --- |
-| POST | `/api/auth/otp` | - | Send a login code. One per 2 minutes, 5 per hour per number. |
+| POST | `/api/auth/otp` | - | Send a login code. One per 2 minutes and 5 per hour per number; 20 per 10 minutes per client IP. |
 | POST | `/api/auth/verify` | - | Check the code (5 attempts) and sign in; creates the account on first sign-in. |
-| POST | `/api/auth/refresh` | - | Rotate the refresh token. Reusing an old one signs the user out everywhere. |
+| POST | `/api/auth/refresh` | - | Rotate the refresh token. Reusing an old one signs the user out everywhere (see below). |
 | POST | `/api/auth/logout` | - | Revoke a refresh token. |
+
+Refresh tokens are single-use. If two tabs refresh with the same token at once, the second gets
+401 `INVALID_REFRESH_TOKEN` and should pick up the tokens the first tab stored; nothing else
+happens. Reusing a token more than 30 seconds after it was replaced is treated as theft and
+revokes all of the user's sessions. The simplest client pattern is to share one in-flight refresh
+between tabs and requests.
 
 In development the code is printed in the backend log. With `OTP_DEMO_MODE=true` it is also
 returned as `demoCode` (for a public demo without SMS; never with a real SMS provider).
@@ -81,7 +87,7 @@ returned as `demoCode` (for a public demo without SMS; never with a real SMS pro
 
 | Parameter | Meaning |
 | --- | --- |
-| `q` | Words that must all appear in the product or brand name. Half-spaces are ignored, so "تی شرت" finds "تی‌شرت". |
+| `q` | Words that must all appear in the product or brand name (up to 200 characters). Half-spaces and the digit script are ignored, so "تی شرت" finds "تی‌شرت" and "65" finds "۶۵". |
 | `category` | Category slug; subcategories are included. |
 | `brand` | Brand slug; repeat for several (`brand=a&brand=b`). |
 | `minPrice`, `maxPrice` | Rial, compared with the price shown on the card. |
@@ -110,7 +116,7 @@ The cart response has `lines` (each with `maxQuantity` and an `issue` of `UNAVAI
 `OUT_OF_STOCK` or `INSUFFICIENT_STOCK` when something changed), `itemsTotal`, `discountTotal`,
 `shippingFee`, `freeShippingRemaining` ("add X more for free shipping"), `payable` and
 `hasIssues`. Shipping is a flat 60,000 Toman, free from 1,000,000 Toman (both configurable). At
-most 10 of one variant per order.
+most 10 of one variant and 50 different variants per cart.
 
 ## Orders and payment
 
@@ -132,13 +138,17 @@ sequenceDiagram
 
 | Method | Path | Auth | Purpose |
 | --- | --- | --- | --- |
-| POST | `/api/orders` | user | Checkout: `{addressId}`. Refused while the cart has issues. |
+| POST | `/api/orders` | user | Checkout: `{addressId, expectedPayable}`. Refused while the cart has issues, or with `PRICES_CHANGED` when `expectedPayable` (the cart's `payable` the customer saw) no longer matches. |
 | GET | `/api/orders` | user | Order history, newest first, with up to four item images each. |
 | GET | `/api/orders/{orderNumber}` | user | Order details, items, address snapshot and payment attempts. |
 | POST | `/api/orders/{orderNumber}/cancel` | user | Cancel while unpaid; the stock is released. |
 | POST | `/api/orders/{orderNumber}/pay` | user | Start a payment attempt: `{gateway: "ZARINPAL" or "MOCK"}` (optional). |
 | GET | `/api/payments/callback` | - | Gateway return URL. Safe to call again: a finished payment is only reported. |
 | GET | `/api/payments/mock/{authority}` | - | The mock gateway's page (development and demos only). |
+
+An order with nothing to pay (free items and free shipping) is PAID at checkout. If two customers
+race for the last unit, or anything else changes concurrently, the loser gets 409
+`CONCURRENT_UPDATE` and can simply retry.
 
 The result page reads `status` (`success` or `failed`), `order` and, on success, `ref` (the
 tracking code, کد پیگیری). A failed or cancelled payment leaves the order unpaid, so the customer
@@ -171,7 +181,7 @@ become admins when they sign in.
 | PUT | `/api/admin/products/{id}/specs` | Replace the spec table. |
 | POST, DELETE | `/api/admin/products/{id}/images[/{imageId}]` | Add an image URL or remove an image. |
 | POST | `/api/admin/products/{id}/variants` | Add a variant. |
-| PUT | `/api/admin/variants/{id}` | Change a variant's SKU, attributes, prices, offer end, stock or `active`. |
+| PUT | `/api/admin/variants/{id}` | Change a variant's SKU, attributes, prices, offer end, stock or `active`. Send the `version` from the product detail: if the variant changed meanwhile (for example it sold), the update is refused with `STALE_VARIANT` instead of overwriting the stock. |
 | GET | `/api/admin/variants/low-stock?threshold=5` | Variants that are running out. |
 | GET | `/api/admin/orders?status=&q=` | Orders; `q` is an order number or customer mobile. |
 | GET | `/api/admin/orders/{orderNumber}` | One order, with the customer. |
@@ -183,10 +193,11 @@ become admins when they sign in.
 
 ## Error codes
 
-Common `code` values: `VALIDATION_FAILED`, `INVALID_BODY`, `UNAUTHENTICATED`, `FORBIDDEN`,
-`INVALID_MOBILE`, `OTP_RESEND_TOO_SOON`, `OTP_HOURLY_LIMIT`, `OTP_INVALID`, `OTP_EXPIRED`,
+Common `code` values: `VALIDATION_FAILED`, `INVALID_BODY`, `INVALID_PARAMETER`, `REQUEST_REJECTED`
+(unknown path, wrong method...), `UNAUTHENTICATED`, `FORBIDDEN`,
+`INVALID_MOBILE`, `OTP_RESEND_TOO_SOON`, `OTP_HOURLY_LIMIT`, `OTP_IP_LIMIT`, `OTP_INVALID`, `OTP_EXPIRED`,
 `OTP_TOO_MANY_ATTEMPTS`, `ACCOUNT_DISABLED`, `INVALID_REFRESH_TOKEN`, `PRODUCT_NOT_FOUND`,
-`VARIANT_UNAVAILABLE`, `QUANTITY_LIMIT`, `CART_EMPTY`, `CART_HAS_ISSUES`, `CONCURRENT_UPDATE`
-(retry), `ORDER_NOT_FOUND`, `ORDER_NOT_CANCELLABLE`, `ORDER_NOT_PAYABLE`, `ORDER_EXPIRED`,
+`VARIANT_UNAVAILABLE`, `QUANTITY_LIMIT`, `CART_FULL`, `CART_EMPTY`, `CART_HAS_ISSUES`,
+`PRICES_CHANGED`, `CONCURRENT_UPDATE` (retry), `STALE_VARIANT`, `ORDER_NOT_FOUND`, `ORDER_NOT_CANCELLABLE`, `ORDER_NOT_PAYABLE`, `ORDER_EXPIRED`,
 `GATEWAY_UNAVAILABLE`, `PAYMENT_GATEWAY_ERROR`, `REVIEW_EXISTS`, `INVALID_STATUS_CHANGE`,
 `CONSTRAINT_VIOLATION`.
