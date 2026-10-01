@@ -32,7 +32,9 @@ function Form({ me }: { me: Profile }) {
   return (
     <Card>
       <CardHeader title="اطلاعات حساب کاربری" />
+      {/* noValidate: the API's Persian messages are shown instead of the browser's own. */}
       <form
+        noValidate
         className="grid gap-4 p-5 sm:grid-cols-2"
         onSubmit={async (event) => {
           event.preventDefault();
