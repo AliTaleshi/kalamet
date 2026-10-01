@@ -9,6 +9,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.jayway.jsonpath.JsonPath;
 import com.kalamet.IntegrationTest;
+import com.kalamet.order.service.OrderService;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Callable;

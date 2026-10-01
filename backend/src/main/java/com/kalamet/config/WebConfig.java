@@ -1,6 +1,6 @@
 package com.kalamet.config;
 
-import com.kalamet.common.CurrentUserIdResolver;
+import com.kalamet.common.web.CurrentUserIdResolver;
 import java.util.List;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;

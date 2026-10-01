@@ -7,7 +7,16 @@ Single store (no multi-vendor marketplace). Persian, RTL UI.
 - Backend: Java 21, Spring Boot 4.1.x (Spring Framework 7, Hibernate 7, Jackson 3), Spring Data JPA,
   Spring Security resource server (HS256 JWT), Lombok, springdoc, Maven wrapper (`backend/mvnw`).
   Package-by-feature under `com.kalamet`: `user`, `catalog`, `cart`, `order`, `review`, plus
-  `common` (errors, paging, Persian text helpers) and `config`. Lives in `backend/`.
+  `common` (`error`, `web` for paging and the current user, `text` for Persian helpers) and `config`.
+  Lives in `backend/`.
+- Every feature has the same sub-packages: `domain` (entities, enums, domain rules like `PriceQuote`),
+  `repository` (Spring Data, plus SQL read models like `ProductSearch`), `service`, `web`
+  (controllers; admin endpoints in separate `Admin*Controller`s) and `dto` (records grouped in
+  `*Dtos` holders). Integrations get their own: `user/sms`, `order/gateway`.
+- Dependencies point inwards: web -> service -> repository -> domain; dto may use domain. A feature
+  uses another feature's services, never its repositories (`CatalogService` exposes variants,
+  images and active products to cart, order and review; `OrderService.hasReceivedProduct` serves
+  reviews). Unit tests sit next to their class's package; API tests stay at the feature root.
 - Database: PostgreSQL 16 via the root `docker-compose.yml`. Flyway owns the schema; Hibernate `ddl-auto: validate`.
 - Frontend (next, in `frontend/`): Next.js / React, RTL, Vazirmatn font, Persian digits, Jalali dates.
   The API it will call is documented in `docs/api.md`.
@@ -24,7 +33,7 @@ Single store (no multi-vendor marketplace). Persian, RTL UI.
   discount_ends_at for "amazing offers", stock, `version` for optimistic locking,
   `attributes` JSONB with English keys and Persian values, e.g. {"color": "مشکی", "size": "M"}).
   A product with no options has one variant with `{}`.
-- Pricing rule (`catalog.PriceQuote`, repeated in SQL in `catalog.ProductSearch`): after
+- Pricing rule (`catalog.domain.PriceQuote`, repeated in SQL in `catalog.repository.ProductSearch`): after
   `discount_ends_at` passes, the variant sells at `compare_at_price` with no discount shown.
 - Cart and order items reference variants. Order items and orders snapshot names, prices, attributes
   and the shipping address so history never changes.
