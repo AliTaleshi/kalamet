@@ -18,8 +18,31 @@ Single store (no multi-vendor marketplace). Persian, RTL UI.
   images and active products to cart, order and review; `OrderService.hasReceivedProduct` serves
   reviews). Unit tests sit next to their class's package; API tests stay at the feature root.
 - Database: PostgreSQL 16 via the root `docker-compose.yml`. Flyway owns the schema; Hibernate `ddl-auto: validate`.
-- Frontend (next, in `frontend/`): Next.js / React, RTL, Vazirmatn font, Persian digits, Jalali dates.
-  The API it will call is documented in `docs/api.md`.
+- Frontend in `frontend/`: Next.js 16 (App Router, `proxy.ts` instead of middleware), React 19,
+  TypeScript, Tailwind CSS 4 (brand tokens in `globals.css`: teal `brand-*`, amber `accent-*`),
+  TanStack Query, lucide icons, self-hosted Vazirmatn. Node runs only in Docker (`node:22-alpine`);
+  the host has Node 18. Read `frontend/AGENTS.md`: this Next.js version differs from older ones.
+
+## Frontend architecture
+- `app/(store)/` is the shop and customer account (server-rendered catalog pages, `force-dynamic`
+  so builds never need the API); `app/admin/` is the panel (layout checks the role server-side).
+- Browser code never sees tokens. `app/bff/[...path]` forwards `/bff/x` to `API_URL/api/x` with the
+  access token from the httpOnly `kl_at` cookie, refreshes from `kl_rt` (one shared refresh per
+  token, `lib/auth/refresh.ts`), turns sign-in responses into cookies, checks Origin on writes and
+  forwards client IP and host. `/bff/session` is `me` that answers `{user: null}` when signed out.
+- `proxy.ts` renews expired access tokens before pages render and redirects signed-out visitors
+  away from `/profile`, `/checkout` and `/admin`.
+- `app/api/payments/[...path]` serves the API's payment callback and mock gateway on this origin;
+  the API builds those URLs from the forwarded host, so `PAYMENT_CALLBACK_URL` can stay empty.
+- Server components call the API with `lib/api/server.ts`; client components with `lib/api/client.ts`
+  (`api()` throws `ApiError` whose message is the API's Persian `detail`).
+- Cart: `lib/hooks/cart.ts` hides the difference between the server cart and the guest cart in
+  localStorage, which is merged on sign-in (`mergeGuestCart`).
+- Formatting only through `lib/format.ts` (Toman from Rial, Persian digits, Jalali dates in the
+  Asia/Tehran zone so server and client render the same text). Product images are plain `<img>`
+  (admin URLs from any host; `next/image` would make the server an open image proxy).
+- React 19 lint rules are on: no `setState` directly in effects (derive state, or remount with `key`).
+- Checks: `npx tsc --noEmit`, `npx eslint .`, `npx next build`, and Playwright e2e (`frontend/e2e`).
 
 ## Schema decisions (see backend/src/main/resources/db/migration and docs/database.md)
 - One Flyway migration per layer: V1 identity, V2 catalog, V3 cart, V4 orders/payments, V5 reviews,
@@ -87,9 +110,8 @@ Single store (no multi-vendor marketplace). Persian, RTL UI.
   `newMobile()` per test because of the OTP rate limits.
 
 ## Next steps
-1. Frontend in `frontend/` (Next.js, RTL, Persian) against `docs/api.md`.
-2. Optional backend extras: image upload (S3-compatible storage), a shared (Redis) OTP IP limit
-   for multiple instances, a Dockerfile for deployment, pg_trgm search indexes.
+- Image upload (S3-compatible storage) instead of image URLs, a shared (Redis) OTP IP limit for
+  several instances, pg_trgm search indexes, CI/CD (postponed by the owner).
 
 ## Changing the schema
 - Any schema change is a new migration (`V7__...`), and `docs/database.md` is updated in the same commit.

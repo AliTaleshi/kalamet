@@ -6,7 +6,7 @@ full-stack portfolio project.
 | Part | Stack | Status |
 | --- | --- | --- |
 | `backend/` | Java 21, Spring Boot 4, Spring Data JPA, Spring Security (JWT), Flyway, PostgreSQL 16 | Complete REST API |
-| `frontend/` | Next.js, React, RTL, Vazirmatn, Jalali dates | Planned |
+| `frontend/` | Next.js 16, React 19, TypeScript, Tailwind CSS 4, TanStack Query | Store, customer account and admin panel |
 
 ## What the backend does
 
@@ -26,13 +26,38 @@ full-stack portfolio project.
 See [docs/api.md](docs/api.md) for the endpoints and [docs/database.md](docs/database.md) for
 the schema.
 
+## What the frontend does
+
+- A Persian, right-to-left store: home page with amazing offers, category and search listings with
+  filters and sorting kept in the URL, and product pages with colour/size pickers, specs and reviews.
+- Prices in Toman, Persian digits and Jalali dates everywhere; the Vazirmatn font is self-hosted.
+- Sign-in with an SMS code, a cart that works before sign-in and merges afterwards, checkout with
+  saved addresses, payment through the gateway and a result page.
+- Customer account: profile, orders (pay again, cancel), addresses and reviews.
+- Admin panel: dashboard, orders (ship, deliver, refund), product editor with variants, stock,
+  specs and images, categories, brands, review moderation and users.
+- Tokens never reach browser JavaScript: the Next.js server keeps them in httpOnly cookies and
+  forwards API calls (`/bff/...`), refreshing the session when needed.
+
 ## Run it locally
 
-Requirements: Java 21+ and Docker. Maven is not needed: the backend ships the Maven wrapper.
+The quickest way runs everything in Docker (PostgreSQL, API and frontend):
 
 ```bash
-docker compose up -d                   # PostgreSQL 16
-cd backend && ./mvnw spring-boot:run   # API on http://localhost:8080; Flyway migrates on startup
+docker compose --profile app up --build   # store on http://localhost:3000
+```
+
+Sign in with `09120000000` to get the admin panel at `/admin`; in this setup the login page shows
+the code (demo mode), so no SMS is needed.
+
+To work on the code, run the parts separately. Requirements: Java 21+ and Docker. Maven and
+Node.js are not needed: the backend ships the Maven wrapper and the frontend runs in a Node 22
+container.
+
+```bash
+docker compose up -d                              # PostgreSQL 16
+cd backend && ./mvnw spring-boot:run              # API on http://localhost:8080; Flyway migrates on startup
+docker compose --profile dev up frontend-dev      # Next.js dev server on http://localhost:3000
 ```
 
 - API docs: <http://localhost:8080/swagger-ui.html>
@@ -42,11 +67,15 @@ cd backend && ./mvnw spring-boot:run   # API on http://localhost:8080; Flyway mi
 - Pay: the mock gateway is enabled in development; it shows a page with "pay" and "cancel"
   buttons and then redirects to the frontend at `FRONTEND_URL`.
 
-Run the tests (they start their own PostgreSQL with Testcontainers, so Docker must be running):
+Run the backend tests (they start their own PostgreSQL with Testcontainers, so Docker must be
+running):
 
 ```bash
 cd backend && ./mvnw test
 ```
+
+End-to-end tests drive a real browser through the whole stack; see
+[frontend/e2e/README.md](frontend/e2e/README.md).
 
 ## Configuration
 
