@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { BuyBox } from "@/components/product/buy-box";
-import { Gallery } from "@/components/product/gallery";
+import { ProductShowcase } from "@/components/product/product-showcase";
 import { Reviews } from "@/components/product/reviews";
 import { Breadcrumbs } from "@/components/store/breadcrumbs";
 import { RatingValue } from "@/components/ui/rating";
@@ -34,32 +33,28 @@ export default async function ProductPage({ params }: Props) {
   return (
     <div className="flex flex-col gap-6">
       <Breadcrumbs items={product.breadcrumbs.map((c) => ({ label: c.name, href: `/category/${c.slug}` }))} />
-      <article className="grid gap-8 rounded-2xl border border-neutral-200 bg-white p-5 lg:grid-cols-[minmax(0,26rem)_1fr_20rem]">
-        <Gallery images={product.images} name={product.name} />
-        <div className="flex flex-col gap-4">
-          {product.brand && (
-            <Link href={`/search?brand=${product.brand.slug}`} className="text-sm font-medium text-brand-700">
-              {product.brand.name}
-            </Link>
-          )}
-          <h1 className="text-xl font-black leading-9 text-neutral-800">{product.name}</h1>
-          {product.nameEn && <p className="text-sm text-neutral-400" dir="ltr">{product.nameEn}</p>}
-          <RatingValue rating={product.rating.average} count={product.rating.count} className="text-sm" />
-          {product.specGroups[0] && (
-            <div>
-              <h2 className="mb-2 font-bold text-neutral-800">ویژگی‌ها</h2>
-              <ul className="space-y-1.5 text-sm text-neutral-600">
-                {product.specGroups[0].specs.slice(0, 4).map((spec) => (
-                  <li key={spec.name}>
-                    <span className="text-neutral-400">{spec.name}:</span> {spec.value}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-        </div>
-        <BuyBox product={product} />
-      </article>
+      <ProductShowcase product={product}>
+        {product.brand && (
+          <Link href={`/search?brand=${product.brand.slug}`} className="text-sm font-medium text-brand-700">
+            {product.brand.name}
+          </Link>
+        )}
+        <h1 className="text-xl font-black leading-9 text-neutral-800">{product.name}</h1>
+        {product.nameEn && <p className="text-sm text-neutral-400" dir="ltr">{product.nameEn}</p>}
+        <RatingValue rating={product.rating.average} count={product.rating.count} className="text-sm" />
+        {product.specGroups[0] && (
+          <div>
+            <h2 className="mb-2 font-bold text-neutral-800">ویژگی‌ها</h2>
+            <ul className="space-y-1.5 text-sm text-neutral-600">
+              {product.specGroups[0].specs.slice(0, 4).map((spec) => (
+                <li key={spec.name}>
+                  <span className="text-neutral-400">{spec.name}:</span> {spec.value}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </ProductShowcase>
 
       {product.description && (
         <section className="rounded-2xl border border-neutral-200 bg-white p-5">

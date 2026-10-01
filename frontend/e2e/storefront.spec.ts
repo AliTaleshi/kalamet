@@ -43,6 +43,9 @@ test.describe("storefront", () => {
     await expect(page.getByRole("button", { name: "مشکی" })).toHaveAttribute("aria-pressed", "true");
     await expect(page.getByRole("button", { name: "S", exact: true })).toHaveAttribute("aria-pressed", "true");
     await expect(page.getByText("۱٬۲۹۰٬۰۰۰").first()).toBeVisible();   // 12,900,000 Rial
+    // The gallery follows the colour: white shows the white tee.
+    await page.getByRole("button", { name: "سفید" }).click();
+    await expect(page.getByRole("img", { name: "تی‌شرت نخی آرین، سفید" }).first()).toBeVisible();
     await expect(page.getByRole("heading", { name: "مشخصات", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "افزودن به سبد خرید" })).toBeEnabled();
   });

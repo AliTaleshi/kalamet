@@ -3,10 +3,11 @@
 import { clsx } from "clsx";
 import { Check, ShieldCheck, ShoppingCart, Store, Truck } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import type { ProductDetail, Variant } from "@/lib/api/types";
 import { attributeLabel, faNumber } from "@/lib/format";
 import { useCart } from "@/lib/hooks/cart";
+import { findVariant, imageIndexFor } from "@/lib/product";
 import { Button } from "@/components/ui/button";
 import { Countdown } from "@/components/ui/countdown";
 import { Price } from "@/components/ui/price";
@@ -14,11 +15,12 @@ import { QuantityStepper } from "@/components/ui/quantity";
 import { useToast } from "@/components/ui/toast";
 
 /** Option picker (colour, size...) plus price and add-to-cart for the chosen variant. */
-export function BuyBox({ product }: { product: ProductDetail }) {
-  const initial = product.variants.find((v) => v.inStock) ?? product.variants[0];
-  const [selection, setSelection] = useState<Record<string, string>>(initial?.attributes ?? {});
-  const variant = useMemo(() => findVariant(product.variants, selection), [product.variants, selection]);
-
+export function BuyBox({ product, selection, onSelect: setSelection, variant }: {
+  product: ProductDetail;
+  selection: Record<string, string>;
+  onSelect: (selection: Record<string, string>) => void;
+  variant: Variant | null;
+}) {
   const choose = (key: string, value: string) => {
     const wanted = { ...selection, [key]: value };
     // Keep the other choices when that combination exists; otherwise jump to a variant that has this value.
@@ -78,7 +80,7 @@ function PurchasePanel({ product, variant }: { product: ProductDetail; variant: 
       variantId: variant.id,
       productSlug: product.slug,
       productName: product.name,
-      imageUrl: product.images.find((i) => i.variantId === variant.id)?.url ?? product.images[0]?.url ?? null,
+      imageUrl: product.images[imageIndexFor(product, variant)]?.url ?? product.images[0]?.url ?? null,
       attributes: variant.attributes,
       unitPrice: variant.price,
       originalPrice: variant.originalPrice,
@@ -134,8 +136,4 @@ function PurchasePanel({ product, variant }: { product: ProductDetail; variant: 
       )}
     </div>
   );
-}
-
-function findVariant(variants: Variant[], selection: Record<string, string>): Variant | null {
-  return variants.find((v) => Object.entries(v.attributes).every(([key, value]) => selection[key] === value)) ?? null;
 }

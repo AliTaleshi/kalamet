@@ -5,8 +5,8 @@ import { useState } from "react";
 import type { ProductImage as Image } from "@/lib/api/types";
 import { ProductImage } from "@/components/ui/product-image";
 
-export function Gallery({ images, name }: { images: Image[]; name: string }) {
-  const [active, setActive] = useState(0);
+export function Gallery({ images, name, initialIndex = 0 }: { images: Image[]; name: string; initialIndex?: number }) {
+  const [active, setActive] = useState(initialIndex);
   const current = images[active] ?? null;
   return (
     <div className="flex flex-col gap-3">

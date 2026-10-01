@@ -6,6 +6,7 @@ import com.kalamet.catalog.domain.Product;
 import com.kalamet.catalog.domain.ProductImage;
 import com.kalamet.catalog.domain.ProductSpec;
 import com.kalamet.catalog.domain.ProductVariant;
+import com.kalamet.catalog.domain.VariantImages;
 import com.kalamet.catalog.dto.CatalogDtos.BrandResponse;
 import com.kalamet.catalog.dto.CatalogDtos.CategoryDetail;
 import com.kalamet.catalog.dto.CatalogDtos.CategoryNode;
@@ -31,6 +32,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -138,13 +140,22 @@ public class CatalogService {
                 .collect(Collectors.toMap(ProductVariant::getId, v -> v));
     }
 
-    /** Product id to the URL of its main image, for cart and order lines. */
-    public Map<Long, String> mainImageUrls(Collection<Long> productIds) {
-        if (productIds.isEmpty()) {
+    /** Variant id to the picture of that variant (see {@link VariantImages}), for cart and order lines. */
+    public Map<Long, String> imageUrls(Collection<ProductVariant> variants) {
+        if (variants.isEmpty()) {
             return Map.of();
         }
-        return images.findMainImages(productIds).stream()
-                .collect(Collectors.toMap(image -> image.getProduct().getId(), ProductImage::getUrl, (a, b) -> a));
+        Map<Long, List<ProductImage>> byProduct = images.findByProductIdIn(
+                        variants.stream().map(v -> v.getProduct().getId()).distinct().toList()).stream()
+                .collect(Collectors.groupingBy(image -> image.getProduct().getId()));
+        Map<Long, String> urls = new HashMap<>();
+        for (ProductVariant variant : variants) {
+            String url = VariantImages.urlFor(variant, byProduct.getOrDefault(variant.getProduct().getId(), List.of()));
+            if (url != null) {
+                urls.put(variant.getId(), url);
+            }
+        }
+        return urls;
     }
 
     static VariantResponse variantResponse(ProductVariant variant, Instant now) {

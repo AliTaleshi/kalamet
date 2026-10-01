@@ -223,12 +223,11 @@ public class OrderService {
     }
 
     OrderResponse response(Order order, boolean withCustomer) {
-        Map<Long, String> mainImages = catalog.mainImageUrls(order.getItems().stream()
-                .map(item -> item.getVariant().getProduct().getId()).toList());
+        Map<Long, String> images = catalog.imageUrls(order.getItems().stream().map(OrderItem::getVariant).toList());
         List<OrderLine> lines = order.getItems().stream()
                 .map(item -> new OrderLine(item.getVariant().getId(), item.getVariant().getProduct().getSlug(),
                         item.getProductName(), item.getSku(), item.getVariantAttributes(),
-                        mainImages.get(item.getVariant().getProduct().getId()), item.getUnitPrice(),
+                        images.get(item.getVariant().getId()), item.getUnitPrice(),
                         item.getOriginalPrice(), item.getQuantity(), item.getLineTotal()))
                 .toList();
         return new OrderResponse(order.getOrderNumber(), order.getStatus(), order.getCreatedAt(),
@@ -246,15 +245,15 @@ public class OrderService {
     }
 
     private PageResponse<OrderSummary> summaries(Page<Order> page, boolean withCustomer) {
-        Map<Long, String> mainImages = catalog.mainImageUrls(page.getContent().stream()
+        Map<Long, String> images = catalog.imageUrls(page.getContent().stream()
                 .flatMap(order -> order.getItems().stream())
-                .map(item -> item.getVariant().getProduct().getId())
+                .map(OrderItem::getVariant)
                 .distinct()
                 .toList());
         return PageResponse.of(page, order -> new OrderSummary(order.getOrderNumber(), order.getStatus(),
                 order.getTotal(), order.itemCount(),
                 order.getItems().stream()
-                        .map(item -> mainImages.get(item.getVariant().getProduct().getId()))
+                        .map(item -> images.get(item.getVariant().getId()))
                         .filter(url -> url != null)
                         .distinct()
                         .limit(4)

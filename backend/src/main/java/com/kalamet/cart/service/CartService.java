@@ -118,8 +118,7 @@ public class CartService {
             return new CartView(List.of(), 0, 0, 0, 0, 0, 0, false);
         }
         Instant now = clock.instant();
-        Map<Long, String> mainImages = catalog.mainImageUrls(items.stream()
-                .map(item -> item.getVariant().getProduct().getId()).distinct().toList());
+        Map<Long, String> images = catalog.imageUrls(items.stream().map(CartItem::getVariant).toList());
 
         List<CartLine> lines = new ArrayList<>();
         int itemCount = 0;
@@ -138,7 +137,7 @@ public class CartService {
                 hasIssues = true;
             }
             lines.add(new CartLine(variant.getId(), variant.getSku(), variant.getProduct().getSlug(),
-                    variant.getProduct().getName(), mainImages.get(variant.getProduct().getId()),
+                    variant.getProduct().getName(), images.get(variant.getId()),
                     variant.getAttributes(), item.getQuantity(), quote.price(), quote.originalPrice(),
                     quote.discountPercent(), quote.offerEndsAt(), quote.price() * item.getQuantity(),
                     maxQuantity(variant), issue));
