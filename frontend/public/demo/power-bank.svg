@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f3f6f4"/><stop offset="1" stop-color="#dfe9e4"/></linearGradient>
+<radialGradient id="shadow" cx="0.5" cy="0.5" r="0.5"><stop offset="0" stop-color="#000" stop-opacity="0.18"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient></defs>
+<rect width="800" height="800" fill="url(#bg)"/><ellipse cx="400" cy="680" rx="230" ry="30" fill="url(#shadow)"/>
+<rect x="250" y="150" width="300" height="520" rx="48" fill="#2b3338"/>
+<rect x="268" y="168" width="264" height="484" rx="36" fill="#353e44"/>
+<text x="400" y="420" text-anchor="middle" font-family="Arial, sans-serif" font-size="56" font-weight="700" fill="#79cdc0">20000</text>
+<text x="400" y="470" text-anchor="middle" font-family="Arial, sans-serif" font-size="30" fill="#9aa5ad">mAh</text>
+<circle cx="350" cy="560" r="10" fill="#48b0a2"/><circle cx="385" cy="560" r="10" fill="#48b0a2"/><circle cx="420" cy="560" r="10" fill="#48b0a2"/><circle cx="455" cy="560" r="10" fill="#59646b"/>
+<rect x="355" y="190" width="90" height="26" rx="13" fill="#1a1f22"/></svg>
