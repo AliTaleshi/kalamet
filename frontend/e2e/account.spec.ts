@@ -70,3 +70,33 @@ test("addresses can be added, edited, made default and removed", async ({ page }
   await page.locator("li", { hasText: "بلوار سجاد" }).getByRole("button", { name: "حذف" }).click();
   await expect(page.getByText("بلوار سجاد")).toHaveCount(0);
 });
+
+test("the profile can be edited and the API's validation is shown", async ({ page }) => {
+  await signInWithApi(page.request, newMobile(), { first: "حسین", last: "نوری" });
+  await page.goto("/profile");
+  await page.getByLabel("ایمیل").fill("not-an-email");
+  await page.getByRole("button", { name: "ذخیره تغییرات" }).click();
+  await expect(page.getByText("ایمیل معتبر نیست.")).toBeVisible();
+
+  await page.getByLabel("نام", { exact: true }).fill("حسن");
+  const stamp = Date.now();
+  await page.getByLabel("ایمیل").fill(`Hasan.Nouri.${stamp}@Example.com`);
+  await page.getByRole("button", { name: "ذخیره تغییرات" }).click();
+  await expect(page.getByText("اطلاعات حساب ذخیره شد")).toBeVisible();
+  await page.reload();
+  await expect(page.getByLabel("نام", { exact: true })).toHaveValue("حسن");
+  await expect(page.getByLabel("ایمیل")).toHaveValue(`hasan.nouri.${stamp}@example.com`);   // lower-cased by the API
+});
+
+test("customers see and delete their own reviews", async ({ page }) => {
+  await signInWithApi(page.request, newMobile(), { first: "لیلا", last: "کاظمی" });
+  await bff(page.request, "POST", "products/arian-everyday-zip-hoodie/reviews", { rating: 4, title: "گرم و راحت" });
+  await page.goto("/profile/reviews");
+  const review = page.locator("li", { hasText: "گرم و راحت" });
+  await expect(review.getByText("هودی زیپ‌دار آرین")).toBeVisible();
+  await expect(review.getByText("در انتظار تأیید")).toBeVisible();
+
+  page.once("dialog", (d) => d.accept());
+  await review.getByRole("button", { name: "حذف" }).click();
+  await expect(page.getByText("هنوز دیدگاهی ننوشته‌اید")).toBeVisible();
+});

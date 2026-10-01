@@ -8,6 +8,10 @@ export function newMobile(): string {
   return "0939" + String(Math.floor(Math.random() * 10_000_000)).padStart(7, "0");
 }
 
+export function toPersianDigits(text: string): string {
+  return text.replace(/\d/g, (d) => String.fromCharCode(0x06f0 + Number(d)));
+}
+
 export function toAscii(text: string): string {
   return text.replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0));
 }

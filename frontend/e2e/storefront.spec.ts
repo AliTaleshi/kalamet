@@ -71,3 +71,28 @@ test("mobile visitors browse categories from the header @mobile", async ({ page 
   await page.getByRole("button", { name: "فیلترها" }).click();
   await expect(page.getByRole("dialog", { name: "فیلترها" })).toBeVisible();
 });
+
+test.describe("listing filters and guest cart", () => {
+  test("a price range keeps only products inside it", async ({ page }) => {
+    await page.goto("/search");
+    await page.getByLabel("کمترین قیمت (تومان)").fill("۱۰۰۰۰۰۰");
+    await page.getByLabel("بیشترین قیمت (تومان)").fill("2000000");
+    await page.getByRole("button", { name: "اعمال محدوده قیمت" }).click();
+    await expect(page).toHaveURL(/minPrice=1000000&maxPrice=2000000/);
+    await expect(page.getByRole("link", { name: /شارژر دیواری ولترا/ })).toBeVisible();   // 1,850,000 Toman
+    await expect(page.getByRole("link", { name: /هدفون بی‌سیم/ })).toHaveCount(0);       // 8,900,000 Toman
+  });
+
+  test("a guest changes quantities and empties the cart", async ({ page }) => {
+    await page.goto("/product/koozegar-stoneware-mug");
+    await page.getByRole("button", { name: "افزودن به سبد خرید" }).click();
+    await expect(page.getByText("به سبد خرید اضافه شد")).toBeVisible();
+    await page.getByRole("link", { name: "مشاهده سبد خرید" }).click();
+
+    await page.getByRole("button", { name: "افزایش تعداد" }).click();
+    await expect(page.getByText("۲ کالا")).toBeVisible();
+    await page.getByRole("button", { name: "کاهش تعداد" }).click();
+    await page.getByRole("button", { name: "حذف از سبد" }).click();
+    await expect(page.getByText("سبد خرید شما خالی است!")).toBeVisible();
+  });
+});
