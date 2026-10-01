@@ -20,9 +20,7 @@ export function ProductListing({ params, result, brands }: { params: ListingPara
             <SortBar params={params} total={result.totalItems} />
           </Suspense>
           {result.items.length ? (
-            <div className="p-px">
-              <ProductGrid products={result.items} />
-            </div>
+            <ProductGrid products={result.items} />
           ) : (
             <EmptyState icon={SearchX} title="کالایی پیدا نشد" description="فیلترها را تغییر دهید یا عبارت دیگری را جستجو کنید." />
           )}

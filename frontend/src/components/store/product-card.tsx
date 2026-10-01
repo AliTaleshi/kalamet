@@ -38,9 +38,10 @@ export function ProductCard({ product, compact = false }: { product: ProductSumm
 
 export function ProductGrid({ products }: { products: ProductSummary[] }) {
   return (
-    <ul className="grid grid-cols-2 gap-px overflow-hidden rounded-2xl border border-neutral-200 bg-neutral-200 sm:grid-cols-3 lg:grid-cols-4">
+    // Cell borders instead of a coloured gap, so a short last row leaves white space, not grey.
+    <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
       {products.map((product) => (
-        <li key={product.id}>
+        <li key={product.id} className="border-b border-s border-neutral-100">
           <ProductCard product={product} />
         </li>
       ))}
