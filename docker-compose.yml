@@ -1,3 +1,8 @@
+# Local environment.
+#   docker compose up -d                       PostgreSQL only (run the API and frontend yourself)
+#   docker compose --profile app up --build    the whole stack: http://localhost:3000
+#   docker compose --profile dev up frontend-dev   Next.js dev server (hot reload) against an API on the host
+
 services:
   postgres:
     image: postgres:16
@@ -16,6 +21,61 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+
+  backend:
+    profiles: [app]
+    build: ./backend
+    container_name: kalamet-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      CORS_ORIGINS: ${FRONTEND_URL:-http://localhost:3000}
+      # Local demo: the login code is shown on the login page (and printed in this container's log).
+      OTP_DEMO_MODE: ${OTP_DEMO_MODE:-true}
+      ADMIN_MOBILES: ${ADMIN_MOBILES:-09120000000}
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  frontend:
+    profiles: [app]
+    build: ./frontend
+    container_name: kalamet-frontend
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      API_URL: http://backend:8080
+      # Plain http on localhost: browsers would drop Secure cookies.
+      COOKIE_SECURE: "false"
+    ports:
+      - "3000:3000"
+
+  frontend-dev:
+    profiles: [dev]
+    image: node:22-alpine
+    # Your user, so node_modules and .next on the host stay yours.
+    user: "${UID:-1000}:${GID:-1000}"
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --hostname 0.0.0.0"
+    environment:
+      API_URL: http://host.docker.internal:8080
+      NEXT_TELEMETRY_DISABLED: "1"
+      HOME: /tmp
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./frontend:/app
+    ports:
+      - "3000:3000"
 
 volumes:
   pgdata:

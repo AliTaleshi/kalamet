@@ -1,0 +1,8 @@
+node_modules
+.next
+npm-debug.log*
+.env*
+e2e/test-results
+e2e/playwright-report
+Dockerfile
+.dockerignore
