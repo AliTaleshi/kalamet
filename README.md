@@ -8,6 +8,22 @@ full-stack portfolio project.
 | `backend/` | Java 21, Spring Boot 4, Spring Data JPA, Spring Security (JWT), Flyway, PostgreSQL 16 | Complete REST API |
 | `frontend/` | Next.js 16, React 19, TypeScript, Tailwind CSS 4, TanStack Query | Store, customer account and admin panel |
 
+## Screenshots
+
+| Store | Product page |
+| --- | --- |
+| ![Home page](docs/screenshots/home.jpg) | ![Product page](docs/screenshots/product.jpg) |
+| **Cart** | **Admin dashboard** |
+| ![Cart](docs/screenshots/cart.jpg) | ![Admin dashboard](docs/screenshots/admin-dashboard.jpg) |
+
+<p>
+  <img src="docs/screenshots/mobile-home.jpg" alt="Home page on a phone" width="260">
+  <img src="docs/screenshots/mobile-product.jpg" alt="Product page on a phone" width="260">
+</p>
+
+The demo catalog's product pictures are illustrations made for this project
+(`frontend/public/demo/`).
+
 ## What the backend does
 
 - Sign-in with a mobile number and an SMS code (Kavenegar), short-lived JWT access tokens and

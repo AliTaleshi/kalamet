@@ -91,7 +91,11 @@ Single store (no multi-vendor marketplace). Persian, RTL UI.
   PENDING_PAYMENT; unverified gateway payments are reversed by the gateway.
 - Admins: mobiles in `ADMIN_MOBILES` get the ADMIN role on sign-in.
 - Refunds are recorded only (status + payment REFUNDED); money is not returned through the API.
-- Product images are URLs (no upload endpoint yet).
+- Product images are URLs (no upload endpoint yet). An image linked to a variant shows that colour:
+  `catalog.domain.VariantImages` picks the variant's image, else one of a same-colour variant, else
+  the main image (cart and order lines); `lib/product.ts` does the same for the product gallery.
+- Demo catalog pictures are SVG illustrations in `frontend/public/demo/`, referenced by relative
+  URLs from the seed, so the frontend serves them (its Docker image copies `public/`).
 
 ## Conventions
 - Enums stored as strings: `@Enumerated(EnumType.STRING)`.
